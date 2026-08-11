@@ -1,0 +1,33 @@
+name = "square-whatsapp-order-automation"
+main = "src/worker.mjs"
+compatibility_date = "2026-08-11"
+
+[vars]
+ADMIN_USERNAME = "admin"
+AUTO_ORDER_UPDATES_ENABLED = "true"
+BUSINESS_TIME_ZONE = "America/Toronto"
+MENU_URL = "https://example.square.site"
+META_GRAPH_API_VERSION = "v23.0"
+META_ORDER_TEMPLATE_LANGUAGE = "en_US"
+META_ORDER_TEMPLATE_NAME = "order_received_update"
+META_PHONE_NUMBER_ID = "replace-with-your-phone-number-id"
+META_STATUS_TEMPLATE_LANGUAGE = "en_US"
+META_STATUS_TEMPLATE_NAME = "order_status_update"
+SQUARE_API_BASE_URL = "https://connect.squareup.com"
+SQUARE_API_VERSION = "2026-07-15"
+SQUARE_LOCATION_ID = "replace-with-your-production-location-id"
+SQUARE_WEBHOOK_URL = "https://your-worker.workers.dev/webhooks/square"
+
+[[d1_databases]]
+binding = "SUPPORT_DB"
+database_name = "square-whatsapp-support"
+database_id = "replace-with-your-d1-database-id"
+
+# Never place secret values in this file. Configure them with:
+# npx wrangler secret put ADMIN_PASSWORD
+# npx wrangler secret put META_ACCESS_TOKEN
+# npx wrangler secret put META_APP_SECRET
+# npx wrangler secret put META_VERIFY_TOKEN
+# npx wrangler secret put SQUARE_ACCESS_TOKEN
+# npx wrangler secret put SQUARE_WEBHOOK_SIGNATURE_KEY
+

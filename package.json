@@ -1,0 +1,27 @@
+{
+  "name": "square-whatsapp-order-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-tested Square and WhatsApp order automation for a Canadian food microbusiness.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "check": "node --check src/worker.mjs",
+    "test:support": "node test/support-flow.test.mjs",
+    "test:flows": "node --test test/customer-flow.test.mjs test/order-notification.test.mjs",
+    "test": "npm run test:support && npm run test:flows",
+    "validate": "npm run check && npm test"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "square-api",
+    "whatsapp-cloud-api",
+    "restaurant-automation",
+    "serverless"
+  ],
+  "author": "Iago Gomes",
+  "license": "UNLICENSED"
+}
+
