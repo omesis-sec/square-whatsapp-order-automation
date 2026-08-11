@@ -14,7 +14,39 @@ Create:
 The Worker creates missing tables on first use. The SQL in
 `migrations/0001_initial.sql` is included as a reviewable schema reference.
 
-## 2. Encrypted secrets
+## 2. Meta permanent access token
+
+For production, use a **Meta System User access token configured to never
+expire**. Do not rely on the temporary token shown in the WhatsApp Getting
+Started panel.
+
+In Meta Business Settings:
+
+1. Open **Users → System users** and create or select a system user with the
+   **Admin** role.
+2. Under **Assigned assets**, assign the Meta app used by this integration and
+   grant **Full control**.
+3. Assign the production **WhatsApp Business Account (WABA)** to the same system
+   user and grant **Full control**.
+4. Click **Generate token** for that system user and choose the application.
+5. When Meta presents the token expiration option, select **Never expires**.
+6. Grant both required WhatsApp permissions:
+   - `whatsapp_business_management`
+   - `whatsapp_business_messaging`
+7. Generate the token, copy it immediately, and store it as the Cloudflare
+   encrypted secret `META_ACCESS_TOKEN`.
+
+With Wrangler:
+
+```bash
+npx wrangler secret put META_ACCESS_TOKEN
+```
+
+The generated credential must never be committed to source control. A token
+configured with no scheduled expiration can still be invalidated if it is
+revoked, the system user is removed, or its access to the app/WABA is changed.
+
+## 3. Encrypted secrets
 
 Configure these as **Secret** values, never plaintext:
 
@@ -36,7 +68,7 @@ npx wrangler secret put SQUARE_ACCESS_TOKEN
 npx wrangler secret put SQUARE_WEBHOOK_SIGNATURE_KEY
 ```
 
-## 3. Plaintext variables
+## 4. Plaintext variables
 
 Use the names from `.env.example`. The important production values are:
 
@@ -58,7 +90,7 @@ Use the names from `.env.example`. The important production values are:
 The optional variables `BUSINESS_HOURS`, `DELIVERY_INFO`, `ALLERGEN_INFO` and
 `PAYMENT_INFO` override customer-facing bot responses.
 
-## 4. Meta webhook
+## 5. Meta webhook
 
 - Callback URL: `https://<worker-domain>/webhooks/whatsapp`
 - Verify token: the value stored in `META_VERIFY_TOKEN`
@@ -66,7 +98,7 @@ The optional variables `BUSINESS_HOURS`, `DELIVERY_INFO`, `ALLERGEN_INFO` and
 
 The Worker verifies `X-Hub-Signature-256` using `META_APP_SECRET`.
 
-## 5. Square webhook
+## 6. Square webhook
 
 - Notification URL: `https://<worker-domain>/webhooks/square`
 - Events:
@@ -78,7 +110,7 @@ The Worker verifies `X-Hub-Signature-256` using `META_APP_SECRET`.
 `SQUARE_WEBHOOK_URL` must match the notification URL byte for byte because it is
 part of Square's HMAC input.
 
-## 6. Initial-order template
+## 7. Initial-order template
 
 Create a Meta **Utility** template in **English (US)** named
 `order_received_update`.
@@ -97,7 +129,7 @@ Quick replies, in order:
 2. `More options`
 3. `Talk to us`
 
-## 7. Status-update template
+## 8. Status-update template
 
 Create a second Meta **Utility** template in **English (US)** named
 `order_status_update`.
@@ -114,7 +146,7 @@ Use the options below for more information. Reply STOP to stop WhatsApp order up
 Use the same three quick replies and the same order. Template names are
 lowercase and must match the Cloudflare variables exactly.
 
-## 8. Deploy and verify
+## 9. Deploy and verify
 
 ```bash
 cp wrangler.toml.example wrangler.toml
@@ -129,7 +161,7 @@ Expected root response:
 Sabor do Brasil automation online | 2026-08-06.5-launch-hardening
 ```
 
-## 9. Production acceptance test
+## 10. Production acceptance test
 
 Use a real zero-value or low-value test item and a Canadian WhatsApp number.
 
@@ -145,4 +177,3 @@ Use a real zero-value or low-value test item and a Canadian WhatsApp number.
 10. Reactivate updates from the bot menu and verify delivery resumes.
 
 Do not enable public ordering until all ten checks pass.
-
