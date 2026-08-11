@@ -11,14 +11,25 @@ status updates and provides a lightweight human-support inbox.
 
 ## Why I built it
 
-Small food businesses often accept orders online but still answer the same
-questions manually: *Was my order received? Is it ready? When will it arrive?*
-Square already handled the menu, checkout and payment, but its free storefront
-did not provide the WhatsApp workflow the business needed.
+This project began with a Brazilian-owned small business in Canada serving
+primarily Brazilian customers. WhatsApp is deeply embedded in everyday
+communication in Brazil, so customers naturally expected to use it to ask
+questions, receive updates and track their orders. Square already handled the
+storefront, checkout, payments and order management, but its free online
+experience did not connect those operations to the communication channel the
+target audience used most.
 
-I designed a serverless integration that keeps Square as the source of truth and
-uses the official WhatsApp Cloud API for customer communication. The result is a
-faster ordering experience without adding another monthly SaaS platform.
+I built this automation to help turn an informal, highly manual workflow into a
+consistent and professional customer experience. The integration keeps Square
+as the source of truth while using the official WhatsApp Cloud API for order
+confirmations, automatic status updates, self-service tracking and access to
+human support.
+
+Although the first implementation was created for a food business, the
+architecture is not limited to restaurants. It can be adapted for other small
+businesses that manage orders through Square and want to communicate with their
+customers through WhatsApp, without relying on an additional monthly SaaS
+platform.
 
 ## Production-verified capabilities
 
@@ -164,8 +175,10 @@ More detail is available in [SECURITY.md](SECURITY.md).
 
 ## Product direction
 
-The architecture can be adapted for other Canadian restaurants, caterers,
-home-based kitchens and local delivery businesses using Square. A client rollout
+The architecture can be adapted for other Canadian small businesses that use
+Square for orders and want WhatsApp-based customer communication. Examples
+include restaurants, caterers, home-based kitchens, retailers, local delivery
+operations and service businesses with order-based workflows. A client rollout
 requires its own Square application, Meta business assets, WhatsApp number,
 approved utility templates, Cloudflare account, privacy policy and operational
 copy.
