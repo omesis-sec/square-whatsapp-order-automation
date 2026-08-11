@@ -115,6 +115,36 @@ local verification or Wrangler for a local Worker runtime.
 
 ## Configuration
 
+### Meta permanent access token
+
+Production deployments should use a **Meta System User access token configured
+to never expire**, rather than the temporary access token exposed in the
+WhatsApp **Getting Started** panel. The Worker expects this credential in
+`META_ACCESS_TOKEN`.
+
+In Meta Business Settings:
+
+1. Open **Users → System users** and create or select a system user with the
+   **Admin** role.
+2. Under **Assigned assets**, give that system user **Full control** of the Meta
+   app used by this integration.
+3. Assign the production **WhatsApp Business Account (WABA)** to the same system
+   user with **Full control**.
+4. Select **Generate token**, choose the app and, when Meta presents the token
+   expiration option, choose **Never expires**.
+5. Grant `whatsapp_business_management` and `whatsapp_business_messaging`.
+6. Copy the token when it is displayed and store it directly as a Cloudflare
+   encrypted secret:
+
+```bash
+npx wrangler secret put META_ACCESS_TOKEN
+```
+
+Do **not** commit the generated token to this repository, `.env` files or
+`wrangler.toml`. A token configured with no scheduled expiration can still stop
+working if it is manually revoked, the system user is removed, or access to the
+app/WABA is withdrawn.
+
 Create a D1 database bound as `SUPPORT_DB`, copy
 `wrangler.toml.example` to `wrangler.toml`, replace the placeholder IDs and set
 the six sensitive values through Cloudflare encrypted secrets.
@@ -122,7 +152,7 @@ the six sensitive values through Cloudflare encrypted secrets.
 | Secret | Purpose |
 |---|---|
 | `ADMIN_PASSWORD` | Protects the support inbox |
-| `META_ACCESS_TOKEN` | Calls the WhatsApp Cloud API |
+| `META_ACCESS_TOKEN` | Permanent Meta System User token used to call the WhatsApp Cloud API |
 | `META_APP_SECRET` | Verifies Meta webhook signatures |
 | `META_VERIFY_TOKEN` | Verifies the Meta callback URL |
 | `SQUARE_ACCESS_TOKEN` | Reads production Square orders |
