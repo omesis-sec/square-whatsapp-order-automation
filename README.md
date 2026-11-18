@@ -1,5 +1,7 @@
 # Square + WhatsApp Order Automation
 
+[![CI](https://github.com/omesis-sec/square-whatsapp-order-automation/actions/workflows/ci.yml/badge.svg)](https://github.com/omesis-sec/square-whatsapp-order-automation/actions/workflows/ci.yml)
+
 Production-tested order automation for **Sabor do Brasil Toronto**, a Canadian
 food microbusiness operating through Square Online. The system connects Square
 orders to WhatsApp, gives customers self-service tracking, sends automatic
@@ -223,6 +225,25 @@ checklist.
 - Support data and notification records are periodically deleted.
 
 More detail is available in [SECURITY.md](SECURITY.md).
+
+## Known limitations and roadmap
+
+The Worker was built for a single small business and has been exercised end to
+end for that use case. These are the trade-offs I would address before a
+multi-client rollout:
+
+| Area | Current behavior | Planned improvement |
+|---|---|---|
+| Failed events | Webhooks answer `200` before processing; if the Square API is down while an event is handled, the error is logged but the event is not retried | Return `5xx` on failure, or add a queue/periodic reconciliation of `FAILED` and unnotified payments |
+| WhatsApp deduplication | Uses the Cloudflare Cache API, which is scoped to a data center | Deduplicate by message ID in D1 |
+| Tracking lookups | Each `TRACK` request can trigger several Square API calls and there is no per-number rate limit | Per-number rate limiting or a short-lived result cache |
+| Support inbox access | One shared Basic Auth password, compared without attempt limiting | Cloudflare Access in front of `/support`, constant-time comparison |
+| Data retention | Cleanup runs when the inbox lists conversations | A scheduled Cron Trigger |
+| Consent | Customers with no consent record are treated as having consented in person before ordering (the operator's process); an earlier `STOP` always wins | Capture and store verifiable consent evidence; review local rules such as CASL |
+| Schema | Tables are created at runtime and mirrored in `migrations/0001_initial.sql` | Use D1 migrations as the single source, with a test that detects drift |
+| Branding | Business name, default menu URL and customer copy are tied to the original business | Configure them through variables |
+| Code layout | Single-file Worker (`src/worker.mjs`) | Split into Square, WhatsApp, storage, bot and inbox modules once test coverage is broader |
+| Test coverage | Flows are covered end to end; signature rejection, status-change notifications and inbox auth are not | Add those cases |
 
 ## Product direction
 
