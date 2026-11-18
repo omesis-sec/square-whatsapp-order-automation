@@ -1,5 +1,7 @@
 # Square + WhatsApp Order Automation
 
+**English** · [Português (Brasil)](README.pt-BR.md) · [Español](README.es.md)
+
 [![CI](https://github.com/omesis-sec/square-whatsapp-order-automation/actions/workflows/ci.yml/badge.svg)](https://github.com/omesis-sec/square-whatsapp-order-automation/actions/workflows/ci.yml)
 
 Production-tested order automation for **Sabor do Brasil Toronto**, a Canadian
