@@ -87,8 +87,14 @@ src/worker.mjs                    Cloudflare Worker
 test/customer-flow.test.mjs       Menu and manual tracking flows
 test/order-notification.test.mjs  First-contact, opt-out and deduplication
 test/support-flow.test.mjs        Human handoff and return-to-bot flow
+test/helpers/runtime.mjs          Shared D1 and Cache API test doubles
 migrations/0001_initial.sql       D1 schema reference
 docs/deployment.md                Deployment and template setup
+docs/troubleshooting.md           Failure guide by symptom
+postman/                          Postman collection and local environment
+scripts/check-json.mjs            Validates package.json and Postman JSON
+.github/workflows/ci.yml          Runs npm run validate on push and PRs
+.dev.vars.example                 Variables for local wrangler dev
 wrangler.toml.example             Sanitized Cloudflare configuration
 ```
 
@@ -100,6 +106,7 @@ suite uses the built-in `node:sqlite` module.
 ```bash
 git clone https://github.com/omesis-sec/square-whatsapp-order-automation.git
 cd square-whatsapp-order-automation
+npm ci
 npm run validate
 ```
 
@@ -112,6 +119,20 @@ node test/support-flow.test.mjs
 The Worker itself is an ES module for the Cloudflare runtime, not a standalone
 terminal server. `node src/worker.mjs` only loads the module. Use the tests for
 local verification or Wrangler for a local Worker runtime.
+
+## Local Worker and Postman
+
+```bash
+cp wrangler.toml.example wrangler.toml   # then replace the placeholder IDs
+cp .dev.vars.example .dev.vars           # local-only test secrets, never commit
+npm run dev                              # http://localhost:8787
+```
+
+Import the files in [postman/](postman/) and select the
+**Square WhatsApp - Local (wrangler dev)** environment. The secrets in the
+environment must match the ones in `.dev.vars`. See
+[postman/README.md](postman/README.md). If something fails, start with
+[docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Configuration
 

@@ -1,22 +1,8 @@
-import { createHmac, webcrypto } from "node:crypto";
+import { createHmac } from "node:crypto";
 import worker from "../src/worker.mjs";
+import { installRuntimeGlobals } from "./helpers/runtime.mjs";
 
-globalThis.crypto ??= webcrypto;
-
-const cacheEntries = new Map();
-
-globalThis.caches = {
-  default: {
-    async match(request) {
-      return cacheEntries.has(request.url)
-        ? new Response(cacheEntries.get(request.url))
-        : undefined;
-    },
-    async put(request, response) {
-      cacheEntries.set(request.url, await response.text());
-    },
-  },
-};
+installRuntimeGlobals();
 
 const requests = [];
 let recentOrders = [];
