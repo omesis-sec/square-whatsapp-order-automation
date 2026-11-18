@@ -262,3 +262,12 @@ delivery-provider integration, analytics and a reusable onboarding wizard.
 
 Built by **Iago Gomes** as an end-to-end automation, integration and customer
 experience project for a Toronto food microbusiness.
+
+---
+
+**AI assistance:** I designed the architecture and the Square and WhatsApp
+integrations, and validated the system in production for a real business. I
+developed the project together with Claude (Anthropic), which co-authored the
+Worker code and also helped with analysis, documentation, the Postman
+collection, CI/tooling and test refactoring. I directed and approved every
+change.
