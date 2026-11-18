@@ -8,7 +8,9 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "check": "node --check src/worker.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/worker.mjs && node scripts/check-json.mjs",
     "test:support": "node test/support-flow.test.mjs",
     "test:flows": "node --test test/customer-flow.test.mjs test/order-notification.test.mjs",
     "test": "npm run test:support && npm run test:flows",
@@ -22,6 +24,8 @@
     "serverless"
   ],
   "author": "Iago Gomes",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "wrangler": "^4.164.0"
+  }
 }
-

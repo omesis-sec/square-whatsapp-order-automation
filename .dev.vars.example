@@ -1,4 +1,4 @@
-# Secrets — use Cloudflare encrypted secrets in production.
+# Copy to .dev.vars for local `wrangler dev`. In production use Cloudflare encrypted secrets.
 ADMIN_PASSWORD=replace-with-a-long-unique-password
 META_ACCESS_TOKEN=replace-with-a-permanent-system-user-token
 META_APP_SECRET=replace-with-your-meta-app-secret

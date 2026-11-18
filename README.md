@@ -161,7 +161,7 @@ the six sensitive values through Cloudflare encrypted secrets.
 Important plaintext variables include the Meta phone number ID, approved
 template names/languages, Square API URL/version/location, menu URL, business
 timezone and the exact Square notification URL. A complete list is provided in
-[.env.example](.env.example) and [docs/deployment.md](docs/deployment.md).
+[.dev.vars.example](.dev.vars.example) and [docs/deployment.md](docs/deployment.md).
 
 ## Webhook endpoints
 

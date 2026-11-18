@@ -70,7 +70,7 @@ npx wrangler secret put SQUARE_WEBHOOK_SIGNATURE_KEY
 
 ## 4. Plaintext variables
 
-Use the names from `.env.example`. The important production values are:
+Use the names from `.dev.vars.example`. The important production values are:
 
 | Variable | Example / meaning |
 |---|---|
