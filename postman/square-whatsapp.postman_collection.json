@@ -1,0 +1,1745 @@
+{
+  "info": {
+    "name": "Square + WhatsApp Order Automation",
+    "description": "Requests for the Cloudflare Worker. Webhook requests are signed automatically by pre-request scripts.\n\nSafe by default: use synthetic data only. Sending WhatsApp/Square events to a production Worker with a real phone number can message a real customer; keep `customer_phone` on a 555 number or your own test number.\n\nSee docs/troubleshooting.md for failure codes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Root (health check)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 online', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.include('automation online'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 unknown route",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/does-not-exist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "does-not-exist"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Square webhook",
+      "item": [
+        {
+          "name": "Endpoint online (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "HEAD",
+          "request": {
+            "method": "HEAD",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "payment.updated COMPLETED",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_id\": \"MERCHANT_TEST\",\n  \"type\": \"payment.updated\",\n  \"event_id\": \"evt-{{$guid}}\",\n  \"created_at\": \"2026-01-01T12:00:00Z\",\n  \"data\": {\n    \"type\": \"payment\",\n    \"id\": \"{{payment_id}}\",\n    \"object\": {\n      \"payment\": {\n        \"id\": \"{{payment_id}}\",\n        \"status\": \"COMPLETED\",\n        \"order_id\": \"{{order_id}}\",\n        \"receipt_number\": \"F0Tl\",\n        \"total_money\": {\n          \"amount\": 1700,\n          \"currency\": \"CAD\"\n        }\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            },
+            "description": "Completed payment: creates tracking link and sends the first template if updates are enabled."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes x-square-hmacsha256-signature = base64(HMAC-SHA256(key, notificationUrl + rawBody))",
+                  "const key = pm.environment.get('square_webhook_signature_key');",
+                  "const notificationUrl = pm.environment.get('square_webhook_url');",
+                  "if (!key || !notificationUrl) { throw new Error('Set square_webhook_signature_key and square_webhook_url in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(notificationUrl + body, key));",
+                  "pm.request.headers.upsert({ key: 'x-square-hmacsha256-signature', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "payment.updated APPROVED (ignored)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_id\": \"MERCHANT_TEST\",\n  \"type\": \"payment.updated\",\n  \"event_id\": \"evt-{{$guid}}\",\n  \"created_at\": \"2026-01-01T12:00:00Z\",\n  \"data\": {\n    \"type\": \"payment\",\n    \"id\": \"{{payment_id}}\",\n    \"object\": {\n      \"payment\": {\n        \"id\": \"{{payment_id}}\",\n        \"status\": \"APPROVED\",\n        \"order_id\": \"{{order_id}}\",\n        \"receipt_number\": \"F0Tl\",\n        \"total_money\": {\n          \"amount\": 1700,\n          \"currency\": \"CAD\"\n        }\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            },
+            "description": "Non-completed payments are ignored."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes x-square-hmacsha256-signature = base64(HMAC-SHA256(key, notificationUrl + rawBody))",
+                  "const key = pm.environment.get('square_webhook_signature_key');",
+                  "const notificationUrl = pm.environment.get('square_webhook_url');",
+                  "if (!key || !notificationUrl) { throw new Error('Set square_webhook_signature_key and square_webhook_url in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(notificationUrl + body, key));",
+                  "pm.request.headers.upsert({ key: 'x-square-hmacsha256-signature', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "order.updated",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_id\": \"MERCHANT_TEST\",\n  \"type\": \"order.updated\",\n  \"event_id\": \"evt-{{$guid}}\",\n  \"created_at\": \"2026-01-01T12:00:00Z\",\n  \"data\": {\n    \"type\": \"order\",\n    \"id\": \"{{order_id}}\",\n    \"object\": {\n      \"order_updated\": {\n        \"order_id\": \"{{order_id}}\",\n        \"state\": \"OPEN\"\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            },
+            "description": "Status change; only notifies orders already linked by a completed payment."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes x-square-hmacsha256-signature = base64(HMAC-SHA256(key, notificationUrl + rawBody))",
+                  "const key = pm.environment.get('square_webhook_signature_key');",
+                  "const notificationUrl = pm.environment.get('square_webhook_url');",
+                  "if (!key || !notificationUrl) { throw new Error('Set square_webhook_signature_key and square_webhook_url in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(notificationUrl + body, key));",
+                  "pm.request.headers.upsert({ key: 'x-square-hmacsha256-signature', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "order.fulfillment.updated",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_id\": \"MERCHANT_TEST\",\n  \"type\": \"order.fulfillment.updated\",\n  \"event_id\": \"evt-{{$guid}}\",\n  \"created_at\": \"2026-01-01T12:00:00Z\",\n  \"data\": {\n    \"type\": \"order\",\n    \"id\": \"{{order_id}}\",\n    \"object\": {\n      \"order_fulfillment_updated\": {\n        \"order_id\": \"{{order_id}}\",\n        \"state\": \"OPEN\"\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            },
+            "description": "Fulfillment change (RESERVED, PREPARED, COMPLETED...)."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes x-square-hmacsha256-signature = base64(HMAC-SHA256(key, notificationUrl + rawBody))",
+                  "const key = pm.environment.get('square_webhook_signature_key');",
+                  "const notificationUrl = pm.environment.get('square_webhook_url');",
+                  "if (!key || !notificationUrl) { throw new Error('Set square_webhook_signature_key and square_webhook_url in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(notificationUrl + body, key));",
+                  "pm.request.headers.upsert({ key: 'x-square-hmacsha256-signature', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid signature (expects 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-square-hmacsha256-signature",
+                "value": "aW52YWxpZA=="
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_id\": \"MERCHANT_TEST\",\n  \"type\": \"payment.updated\",\n  \"event_id\": \"evt-{{$guid}}\",\n  \"created_at\": \"2026-01-01T12:00:00Z\",\n  \"data\": {\n    \"type\": \"payment\",\n    \"id\": \"{{payment_id}}\",\n    \"object\": {\n      \"payment\": {\n        \"id\": \"{{payment_id}}\",\n        \"status\": \"COMPLETED\",\n        \"order_id\": \"{{order_id}}\",\n        \"receipt_number\": \"F0Tl\",\n        \"total_money\": {\n          \"amount\": 1700,\n          \"currency\": \"CAD\"\n        }\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 rejected', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing signature (expects 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_id\": \"MERCHANT_TEST\",\n  \"type\": \"payment.updated\",\n  \"event_id\": \"evt-{{$guid}}\",\n  \"created_at\": \"2026-01-01T12:00:00Z\",\n  \"data\": {\n    \"type\": \"payment\",\n    \"id\": \"{{payment_id}}\",\n    \"object\": {\n      \"payment\": {\n        \"id\": \"{{payment_id}}\",\n        \"status\": \"COMPLETED\",\n        \"order_id\": \"{{order_id}}\",\n        \"receipt_number\": \"F0Tl\",\n        \"total_money\": {\n          \"amount\": 1700,\n          \"currency\": \"CAD\"\n        }\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/square",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "square"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 rejected', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WhatsApp webhook",
+      "item": [
+        {
+          "name": "Verify callback (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token={{meta_verify_token}}&hub.challenge=challenge-123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "{{meta_verify_token}}"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "challenge-123"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('echoes challenge', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('challenge-123'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify callback - wrong token (expects 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=challenge-123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "wrong-token"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "challenge-123"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Message: hi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"hi\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": "Bot answers with the interactive menu."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Message: TRACK",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"TRACK\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": "Automatic tracking by phone number."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Message: receipt code + total",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"F0Tl 17.00\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": "Manual lookup."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Message: STOP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"STOP\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": "Opt-out; blocks automatic notifications."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Button: ENABLE_UPDATES",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"button_reply\",\n                  \"button_reply\": {\n                    \"id\": \"ENABLE_UPDATES\",\n                    \"title\": \"Enable updates\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": "Explicit opt-in."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Button: NO_UPDATES",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"button_reply\",\n                  \"button_reply\": {\n                    \"id\": \"NO_UPDATES\",\n                    \"title\": \"No thanks\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List: VIEW_MENU",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"list_reply\",\n                  \"list_reply\": {\n                    \"id\": \"VIEW_MENU\",\n                    \"title\": \"View menu\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List: DELIVERY_INFO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"list_reply\",\n                  \"list_reply\": {\n                    \"id\": \"DELIVERY_INFO\",\n                    \"title\": \"Delivery\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List: HOURS_INFO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"list_reply\",\n                  \"list_reply\": {\n                    \"id\": \"HOURS_INFO\",\n                    \"title\": \"Opening hours\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List: ALLERGEN_INFO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"list_reply\",\n                  \"list_reply\": {\n                    \"id\": \"ALLERGEN_INFO\",\n                    \"title\": \"Allergens\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List: PAYMENT_INFO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"list_reply\",\n                  \"list_reply\": {\n                    \"id\": \"PAYMENT_INFO\",\n                    \"title\": \"Payments\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List: HUMAN_HELP (opens support)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"interactive\",\n                \"interactive\": {\n                  \"type\": \"list_reply\",\n                  \"list_reply\": {\n                    \"id\": \"HUMAN_HELP\",\n                    \"title\": \"Talk to us\"\n                  }\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": "Opens a human conversation visible in /support."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Message: BOT (return to bot)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"BOT\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EVENT_RECEIVED', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.eql('EVENT_RECEIVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delivery status receipt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"statuses\": [\n              {\n                \"id\": \"{{wamid}}\",\n                \"status\": \"delivered\",\n                \"timestamp\": \"1767268800\",\n                \"recipient_id\": \"{{customer_phone}}\"\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid signature (expects 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Hub-Signature-256",
+                "value": "sha256=0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WABA_TEST\",\n      \"changes\": [\n        {\n          \"field\": \"messages\",\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"15555550100\",\n              \"phone_number_id\": \"{{meta_phone_number_id}}\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test Customer\"\n                },\n                \"wa_id\": \"{{customer_phone}}\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"{{customer_phone}}\",\n                \"id\": \"wamid.{{$guid}}\",\n                \"timestamp\": \"1767268800\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"hi\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid JSON, valid signature (expects 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{not-json"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/whatsapp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "whatsapp"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Computes X-Hub-Signature-256 = sha256=hex(HMAC-SHA256(appSecret, rawBody))",
+                  "const secret = pm.environment.get('meta_app_secret');",
+                  "if (!secret) { throw new Error('Set meta_app_secret in the environment'); }",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const sig = 'sha256=' + CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Hub-Signature-256', value: sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Support inbox",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          {
+            "key": "username",
+            "value": "{{admin_username}}",
+            "type": "string"
+          },
+          {
+            "key": "password",
+            "value": "{{admin_password}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Inbox page (HTML)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/support",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 html', () => { pm.response.to.have.status(200); pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List conversations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/support/api/conversations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support",
+                "api",
+                "conversations"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 json', () => { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.have.property('conversations'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/support/api/messages?phone={{customer_phone}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support",
+                "api",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "phone",
+                  "value": "{{customer_phone}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 json', () => { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.have.property('messages'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reply to customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "{{base_url}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\",\n  \"body\": \"Hello! This is a test reply.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/support/api/reply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support",
+                "api",
+                "reply"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 or 409 (no open conversation)', () => pm.expect([200, 409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Return to bot",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "{{base_url}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/support/api/close",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support",
+                "api",
+                "close"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 or 409', () => pm.expect([200, 409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reply without Origin (expects 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\",\n  \"body\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/support/api/reply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support",
+                "api",
+                "reply"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 invalid origin', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid phone (expects 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/support/api/messages?phone=abc",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support",
+                "api",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "phone",
+                  "value": "abc"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No auth (expects 401)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/support/api/conversations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "support",
+                "api",
+                "conversations"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
